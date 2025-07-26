@@ -74,7 +74,6 @@ class TransactionType(str, Enum):
     CREDIT = "CREDIT"
     DEBIT = "DEBIT"
 
-    from abc import ABC, abstractmethod
 
 class Transaction:
     """Класс транзакций с типом и суммой"""
