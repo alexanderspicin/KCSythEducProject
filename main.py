@@ -1,6 +1,7 @@
 import datetime
 import re
 import uuid
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
@@ -68,6 +69,23 @@ class AudioGenerationHistory:
     timestamp: datetime.datetime = field(default=datetime.datetime.now(tz=datetime.timezone.utc))
 
 
+class TransactionType(str, Enum):
+    """Класс в котором обозначены все возможные типы транзакций"""
+    CREDIT = "CREDIT"
+    DEBIT = "DEBIT"
+
+    from abc import ABC, abstractmethod
+
+class Transaction:
+    """Класс транзакций с типом и суммой"""
+
+    def __init__(self, transaction_type: TransactionType, amount: float) -> None:
+        self.id = uuid.uuid4()
+        self.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
+        self.transaction_type = transaction_type
+        self.amount = amount
+
+
 @dataclass
 class User:
     """
@@ -83,6 +101,7 @@ class User:
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     balance: Balance = field(default=None)
     generation_history: List[AudioGenerationHistory] = field(default=List)
+    transaction_history: List[Transaction] = field(default=List)
 
     def __post_init__(self):
         self._validate_email()
@@ -104,24 +123,19 @@ class User:
     def get_generation_history(self) -> List[AudioGenerationHistory]:
         return self.generation_history
 
-
-class TransactionType(str, Enum):
-    """Класс в котором обозначены все возможные типы транзакций"""
-    CREDIT = "CREDIT"
-    DEBIT = "DEBIT"
+    def get_transaction_history(self) -> List[Transaction]:
+        return self.transaction_history
 
 
-class Transaction:
-    """TODO:дописать класс транзакций"""
-    def __init__(self, transaction_type: TransactionType, amount: float) -> None:
-        self.id = uuid.uuid4()
-        self.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
-        self.transaction_type = transaction_type
-        self.amount = amount
+class GenerationService(ABC):
+    """Абстрактный сервис генерации аудио"""
 
-
-class GenerationService:
-    """TODO: Дописать сервис генерации"""
+    @abstractmethod
+    def synthesize(self, text: str, user_id: uuid) -> str:
+        """
+        Абстрактный метод синтеза аудио из текста.
+        pass
+        """
 
 if __name__ == "__main__":
     user = User(email='spicin@mail.ru', password='12345678')
