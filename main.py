@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import List
+import bcrypt
+
 
 @dataclass
 class ExchangeService:
@@ -28,6 +30,10 @@ class ExchangeService:
         return amount_in_rub * self.rate
 
 
+"""Инициализация exchange service"""
+exchange_service = ExchangeService(rate=1.2)
+
+
 @dataclass
 class Balance:
     """
@@ -42,10 +48,10 @@ class Balance:
     id: uuid.UUID = uuid.uuid4()
     tokens: float = field(default=100)
 
-    def credit(self, tokens: int) -> None:
+    def credit(self, tokens: float) -> None:
         self.tokens += tokens
 
-    def debit(self, tokens: int) -> None:
+    def debit(self, tokens: float) -> None:
         self.tokens -= tokens
 
 
@@ -68,11 +74,21 @@ class AudioGenerationHistory:
     id: uuid.UUID = uuid.uuid4()
     timestamp: datetime.datetime = field(default=datetime.datetime.now(tz=datetime.timezone.utc))
 
+    def get_audio(self) -> bytes:
+        """Метод для получения аудиозаписи из S3"""
+
 
 class TransactionType(str, Enum):
     """Класс в котором обозначены все возможные типы транзакций"""
     CREDIT = "CREDIT"
     DEBIT = "DEBIT"
+
+
+class TransactionStatus(str, Enum):
+    """Класс в котором обозначены все возможные типы транзакций"""
+    PROCESSING = "PROCESSING"
+    DONE = "DONE"
+    FAILED = "FAILED"
 
 
 class Transaction:
@@ -82,7 +98,22 @@ class Transaction:
         self.id = uuid.uuid4()
         self.timestamp = datetime.datetime.now(tz=datetime.timezone.utc)
         self.transaction_type = transaction_type
+        self.transaction_status = TransactionStatus.PROCESSING
         self.amount = amount
+
+    def transaction_processing(self, balance: Balance) -> None:
+        match self.transaction_type:
+            case "CREDIT":
+                amounts_of_tokens = exchange_service.convert_rub_to_tokens(self.amount)
+                balance.credit(amounts_of_tokens)
+                self.transaction_status = TransactionStatus.DONE
+
+            case "DEBIT":
+                balance.debit(self.amount)
+                self.transaction_status = TransactionStatus.DONE
+
+            case _:
+                self.transaction_status = TransactionStatus.FAILED
 
 
 @dataclass
@@ -93,18 +124,17 @@ class User:
     Attributes:
         id (int): Уникальный идентификатор пользователя
         email (str): Email пользователя
-        password (str): Пароль пользователя
+        __password (str): Пароль пользователя
     """
     email: str
-    password: str
     id: uuid.UUID = field(default_factory=uuid.uuid4)
     balance: Balance = field(default=None)
-    generation_history: List[AudioGenerationHistory] = field(default=List)
-    transaction_history: List[Transaction] = field(default=List)
+    generation_history: List[AudioGenerationHistory] = field(default_factory=list)
+    transaction_history: List[Transaction] = field(default_factory=list)
+    __password: bytes = b""
 
     def __post_init__(self):
         self._validate_email()
-        self._validate_password()
         if self.balance is None:
             self.balance = Balance(user_id=self.id)
 
@@ -114,16 +144,35 @@ class User:
         if not email_pattern.match(self.email):
             raise ValueError("Invalid email format")
 
-    def _validate_password(self) -> None:
-        """Проверяет минимальную длину пароля."""
-        if len(self.password) < 8:
-            raise ValueError("Password must be at least 8 characters long")
+    def set_password(self, plain_password: str) -> None:
+        """Хеширует введенный пароль и сохраняет его в классе."""
+        hashed_password = bcrypt.hashpw(plain_password.encode("utf-8"), bcrypt.gensalt())
+        self.__password = hashed_password
+
+    def check_password(self, plain_password: str) -> bool:
+        """Проверяет, совпадает ли введённый пароль с хранимым хэшем."""
+        return bcrypt.checkpw(plain_password.encode("utf-8"), self.__password)
 
     def get_generation_history(self) -> List[AudioGenerationHistory]:
         return self.generation_history
 
     def get_transaction_history(self) -> List[Transaction]:
         return self.transaction_history
+
+    def update_balance(self, transaction_type: TransactionType, amount: float) -> None:
+        match transaction_type:
+            case "CREDIT":
+                transaction = Transaction(TransactionType.CREDIT, amount)
+                self.transaction_history.append(transaction)
+                transaction.transaction_processing(self.balance)
+
+            case "DEBIT":
+                transaction = Transaction(TransactionType.DEBIT, amount)
+                self.transaction_history.append(transaction)
+                transaction.transaction_processing(self.balance)
+
+            case _:
+                raise ValueError("Invalid transaction type")
 
 
 class GenerationService(ABC):
@@ -133,8 +182,34 @@ class GenerationService(ABC):
     def synthesize(self, text: str, user_id: uuid) -> str:
         """
         Абстрактный метод синтеза аудио из текста.
-        pass
         """
+        pass
+
+
+class TTSGenerationService(GenerationService):
+    def synthesize(self, text: str, user_id: uuid.UUID) -> str:
+        # Логика реализации синтеза речи
+        return f"Generated audio for {text}"
+
+
+class VoiceCloneService(GenerationService):
+    def synthesize(self, text: str, user_id: uuid.UUID) -> str:
+        # Логика голосового клонирования
+        return f"Copied voice and generated audio for {text}"
+
 
 if __name__ == "__main__":
-    user = User(email='spicin@mail.ru', password='12345678')
+    # Создаем нового пользователя
+    user = User(email="spicin@mail.ru")
+    user.set_password("strongpassword")
+
+    # Проверяем работу аутентификации
+    assert user.check_password("strongpassword") == True
+    assert user.check_password("wrongpassword") == False
+
+    # Демонстрация полиморфизма
+    tts_service = TTSGenerationService()
+    clone_service = VoiceCloneService()
+
+    print(tts_service.synthesize("Привет мир!", user.id))  # Используется tts-реализация
+    print(clone_service.synthesize("Привет мир!", user.id))  # Используется clone-реализация
