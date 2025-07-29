@@ -196,20 +196,3 @@ class VoiceCloneService(GenerationService):
     def synthesize(self, text: str, user_id: uuid.UUID) -> str:
         # Логика голосового клонирования
         return f"Copied voice and generated audio for {text}"
-
-
-if __name__ == "__main__":
-    # Создаем нового пользователя
-    user = User(email="spicin@mail.ru")
-    user.set_password("strongpassword")
-
-    # Проверяем работу аутентификации
-    assert user.check_password("strongpassword") == True
-    assert user.check_password("wrongpassword") == False
-
-    # Демонстрация полиморфизма
-    tts_service = TTSGenerationService()
-    clone_service = VoiceCloneService()
-
-    print(tts_service.synthesize("Привет мир!", user.id))  # Используется tts-реализация
-    print(clone_service.synthesize("Привет мир!", user.id))  # Используется clone-реализация

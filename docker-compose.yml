@@ -1,0 +1,71 @@
+version: "3.8"
+services:
+  app:
+    build: ./app/
+    image: kc-syth-api:latest
+    container_name: kc-syth-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./app:/app
+    networks:
+      - kc-syth-network
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+  web:
+    image: nginx:latest
+    container_name: kc-syth-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      app:
+        condition: service_healthy
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+    networks:
+      - kc-syth-network
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    env_file:
+      - .env
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+      - rabbitmq_log:/var/log/rabbitmq
+  db:
+    image: postgres:latest
+    container_name: my_postgres_db
+    env_file:
+      - .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+  pgadmin:
+    image: dpage/pgadmin4
+    env_file:
+      - .env
+    ports:
+      - "8080:80"
+    depends_on:
+      - db
+networks:
+  kc-syth-network:
+    name: kc-syth-network
+    driver: bridge
+
+volumes:
+  postgres_data:
+  rabbitmq_data:
+  rabbitmq_log:
