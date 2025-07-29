@@ -33,6 +33,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
+    restart: on-failure
     hostname: rabbitmq
     ports:
       - "5672:5672"
