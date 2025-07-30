@@ -54,6 +54,8 @@ services:
     ports:
       - "5432:5432"
     restart: unless-stopped
+    networks:
+      - kc-syth-network
   pgadmin:
     image: dpage/pgadmin4
     env_file:
@@ -62,6 +64,10 @@ services:
       - "8080:80"
     depends_on:
       - db
+    networks:
+      - kc-syth-network
+
+
 networks:
   kc-syth-network:
     name: kc-syth-network
