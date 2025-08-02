@@ -8,4 +8,4 @@ RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 
 EXPOSE 8080
 
-CMD ["python", "app.py"]
+CMD ["python", "main.py"]
