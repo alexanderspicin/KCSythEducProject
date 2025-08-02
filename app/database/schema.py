@@ -11,6 +11,9 @@ class BalanceSchema(BaseModel):
     user_id: uuid.UUID
     amount: float
 
+    class Config:
+        from_attributes = True
+
 
 class TransactionSchema(BaseModel):
     id: uuid.UUID
@@ -20,6 +23,9 @@ class TransactionSchema(BaseModel):
     transaction_type: str
     transaction_status: str
 
+    class Config:
+        from_attributes = True
+
 
 class GenerationHistorySchema(BaseModel):
     id: uuid.UUID
@@ -28,6 +34,9 @@ class GenerationHistorySchema(BaseModel):
     timestamp: datetime
     s3_link: str
 
+    class Config:
+        from_attributes = True
+
 
 class UserSchema(BaseModel):
     id: uuid.UUID
@@ -35,6 +44,9 @@ class UserSchema(BaseModel):
     balance: BalanceSchema
     transactions: List[TransactionSchema]
     generation_history: List[GenerationHistorySchema]
+
+    class Config:
+        from_attributes = True
 
 
 class CreateUserSchema(BaseModel):

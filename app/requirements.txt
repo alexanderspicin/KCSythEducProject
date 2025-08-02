@@ -4,3 +4,4 @@ uvicorn~=0.35.0
 sqlalchemy~=2.0.42
 pydantic~=2.11.7
 psycopg2-binary~=2.9.10
+httpx
