@@ -22,3 +22,9 @@ source .venv/bin/activate
 * Реализация полного цикла сервисов генерации аудиозаписей.
 * Оптимизация процесса списания токенов при генерации новых аудиозаписей.
 * Организация авторизации и аутентификации пользователей.
+
+
+### Запуск тестов
+```bash 
+python -c "from tests import test_user_creation_and_balance_operations; test_user_creation_and_balance_operations()"
+```
