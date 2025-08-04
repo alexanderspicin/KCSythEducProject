@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 import uuid
 
-from sqlalchemy import Column, UUID, String, DateTime, ForeignKey, Float
+from sqlalchemy import Column, UUID, String, DateTime, ForeignKey, Float, Boolean
 from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 
@@ -14,6 +14,7 @@ class Users(Base):
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     email = Column(String, nullable=False, unique=True)
     password = Column(String)
+    is_admin = Column(Boolean, default=False, nullable=False)
     transactions = relationship("Transaction", back_populates="user", cascade="all, delete-orphan")
     balance = relationship("Balance", back_populates="user", uselist=False, cascade="all, delete-orphan")
     generation_history = relationship("GenerationHistory", back_populates="user", cascade="all, delete-orphan")
@@ -51,15 +52,8 @@ class GenerationHistory(Base):
 class ExchangeService(Base):
     __tablename__ = 'exchange_service'
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
+    type = Column(String, nullable=False, unique=True)
     rate = Column(Float, nullable=False, default=1.2)
     last_update = Column(DateTime, default=datetime.now(tz=timezone.utc), nullable=False)
-    
-    def __init__(self, **kwargs):
-        # Проверяем, существует ли уже запись
-        from sqlalchemy.orm import object_session
-        session = object_session(self)
-        if session and session.query(ExchangeService).count() > 0:
-            raise ValueError("Cannot create more than one ExchangeService record")
-        super().__init__(**kwargs)
 
 

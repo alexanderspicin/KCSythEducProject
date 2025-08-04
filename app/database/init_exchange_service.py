@@ -39,6 +39,7 @@ def init_exchange_service():
         if existing_service is None:
             # Создаем единственную запись с курсом по умолчанию 1.2
             exchange_service = ExchangeService(
+                type="default",
                 rate=1.2,
                 last_update=datetime.now(tz=timezone.utc)
             )

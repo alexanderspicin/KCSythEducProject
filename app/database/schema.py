@@ -41,6 +41,7 @@ class GenerationHistorySchema(BaseModel):
 class UserSchema(BaseModel):
     id: uuid.UUID
     email: str
+    is_admin: bool
     balance: BalanceSchema
     transactions: List[TransactionSchema]
     generation_history: List[GenerationHistorySchema]
@@ -52,6 +53,7 @@ class UserSchema(BaseModel):
 class CreateUserSchema(BaseModel):
     email: str
     password: str
+    is_admin: bool = False
 
     @field_validator('email')
     def validate_email(cls, email):
@@ -69,6 +71,7 @@ class CreateTransactionSchema(BaseModel):
 
 class ExchangeServiceSchema(BaseModel):
     id: uuid.UUID
+    type: str
     rate: float
     last_update: datetime
 
