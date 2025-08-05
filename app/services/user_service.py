@@ -67,6 +67,7 @@ def create_user(user_data: CreateUserSchema, db: Session = Depends(get_db)) -> U
                 user_id=db_balance.user_id,
                 amount=db_balance.amount
             ),
+            is_admin=db_user.is_admin,
             transactions=[TransactionSchema(
                 id=initial_transaction.id,
                 user_id=initial_transaction.user_id,
@@ -86,3 +87,4 @@ def create_user(user_data: CreateUserSchema, db: Session = Depends(get_db)) -> U
         db.rollback()
         logger.error(f"Unexpected error creating user {user_data.email}: {str(e)}")
         raise Exception(f"Неожиданная ошибка при создании пользователя: {str(e)}")
+

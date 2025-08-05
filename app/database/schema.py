@@ -1,6 +1,6 @@
 import re
 import uuid
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, field_validator
 from datetime import datetime
@@ -87,3 +87,12 @@ class UpdateExchangeRateSchema(BaseModel):
         if rate <= 0:
             raise ValueError("Exchange rate must be positive")
         return rate
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class DataToken(BaseModel):
+    id: Optional[str] = None
