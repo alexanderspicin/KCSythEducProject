@@ -46,6 +46,7 @@ class GenerationHistory(Base):
     s3_link = Column(String, nullable=False)
     timestamp = Column(DateTime, default=datetime.now(tz=timezone.utc), nullable=False)
     tokens_spent = Column(Float, nullable=False)
+    text = Column(String, nullable=False)
     user = relationship("Users", back_populates="generation_history")
 
 

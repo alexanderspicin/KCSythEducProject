@@ -7,3 +7,7 @@ psycopg2-binary~=2.9.10
 httpx
 python-jose[cryptography]
 python-multipart
+torch
+soundfile
+parler_tts
+transformers

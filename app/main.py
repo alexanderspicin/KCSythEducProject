@@ -5,6 +5,12 @@ from routes import router
 from database.init_exchange_service import init_database
 from logger_config import setup_logging, get_logger
 
+#Создаем директорию для хранения генерации
+from pathlib import Path
+
+# Create single directory
+Path("output").mkdir(exist_ok=True)
+
 # Настраиваем логирование при старте модуля
 setup_logging(log_level="INFO", log_to_file=True)
 logger = get_logger(__name__)

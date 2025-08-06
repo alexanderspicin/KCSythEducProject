@@ -30,12 +30,17 @@ class TransactionSchema(BaseModel):
 class GenerationHistorySchema(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
-    amount: float
     timestamp: datetime
     s3_link: str
+    tokens_spent: float
+    text: str
 
     class Config:
         from_attributes = True
+
+
+class CreateGenerationSchema(BaseModel):
+    text: str
 
 
 class UserSchema(BaseModel):
