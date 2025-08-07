@@ -31,7 +31,7 @@ def login(user_details: OAuth2PasswordRequestForm = Depends(), db: Session = Dep
     return {"access_token": access_token, "token_type": "bearer"}
 
 
-@router.post("/create_user", response_model=UserSchema)
+@router.post("/register", response_model=UserSchema)
 async def create_users(user: CreateUserSchema, db: Session = Depends(get_db)):
     logger.info(f"API request to create user: {user.email}")
     try:
@@ -56,6 +56,8 @@ def read_users_me(current_user: Users = Depends(get_current_user)):
 @router.get("/credit", response_model=TransactionSchema)
 def create_credit(amount: float, db: Session = Depends(get_db), current_user: Users = Depends(get_current_user)):
     try:
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be greater than zero.")
         transaction_schema = CreateTransactionSchema(user_id=current_user.id, transaction_type='CREDIT', amount=amount)
         db_transaction = create_transaction(transaction_schema, db=db)
         process_transaction(db_transaction.id, db=db)
