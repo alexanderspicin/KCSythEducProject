@@ -31,10 +31,10 @@ class GenerationHistorySchema(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     timestamp: datetime
-    s3_link: str
+    s3_link: str = None
     tokens_spent: float
     text: str
-
+    status: str
     class Config:
         from_attributes = True
 

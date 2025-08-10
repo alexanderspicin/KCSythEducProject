@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from database.database import SessionLocal
 from database.models import Users, Balance, Transaction
 from database.schema import CreateUserSchema, CreateTransactionSchema
-from database.enums import TransactionType, TransactionStatus
+from database.enums import TransactionType, Status
 from services.user_service import create_user
 from services.transaction_service import create_transaction, process_transaction
 from logger_config import setup_logging, get_logger
@@ -75,7 +75,7 @@ def test_user_creation_and_balance_operations():
             Transaction.amount == 100.0
         ).first()
         assert initial_transaction is not None, "Начальная транзакция не создана"
-        assert initial_transaction.transaction_status == TransactionStatus.DONE, "Статус начальной транзакции неверный"
+        assert initial_transaction.transaction_status == Status.DONE, "Статус начальной транзакции неверный"
         logger.info(f"✓ Начальная транзакция найдена: ID={initial_transaction.id}")
         
         # 5. Создание дополнительной транзакции пополнения
@@ -91,14 +91,14 @@ def test_user_creation_and_balance_operations():
         new_transaction = create_transaction(transaction_data=transaction_data, db=db)
         assert new_transaction is not None, "Транзакция не создана"
         assert new_transaction.amount == top_up_amount, f"Сумма транзакции неверная: {new_transaction.amount}"
-        assert new_transaction.transaction_status == TransactionStatus.PROCESSING, "Статус новой транзакции должен быть PROCESSING"
+        assert new_transaction.transaction_status == Status.PROCESSING, "Статус новой транзакции должен быть PROCESSING"
         logger.info(f"✓ Транзакция создана: ID={new_transaction.id}, Сумма={new_transaction.amount}")
         
         # 6. Обработка транзакции
         logger.info("6. Обработка транзакции")
         processed_transaction = process_transaction(transaction_id=new_transaction.id, db=db)
         assert processed_transaction is not None, "Транзакция не обработана"
-        assert processed_transaction.transaction_status == TransactionStatus.DONE, "Статус обработанной транзакции должен быть DONE"
+        assert processed_transaction.transaction_status == Status.DONE, "Статус обработанной транзакции должен быть DONE"
         logger.info(f"✓ Транзакция обработана: статус={processed_transaction.transaction_status}")
         
         # 7. Проверка обновления баланса
@@ -118,7 +118,7 @@ def test_user_creation_and_balance_operations():
         
         # Проверяем, что обе транзакции имеют статус DONE
         for transaction in all_transactions:
-            assert transaction.transaction_status == TransactionStatus.DONE, f"Транзакция {transaction.id} имеет неверный статус"
+            assert transaction.transaction_status == Status.DONE, f"Транзакция {transaction.id} имеет неверный статус"
             assert transaction.transaction_type == TransactionType.CREDIT, f"Все транзакции должны быть CREDIT"
         
         logger.info(f"✓ Все транзакции проверены: {len(all_transactions)} транзакций со статусом DONE")

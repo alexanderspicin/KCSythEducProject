@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class TransactionStatus(str, Enum):
+class Status(str, Enum):
     """Класс в котором обозначены все возможные типы транзакций"""
     PROCESSING = "PROCESSING"
     DONE = "DONE"

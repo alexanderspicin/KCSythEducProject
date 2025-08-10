@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 
-from database.enums import TransactionStatus, TransactionType
+from database.enums import Status, TransactionType
 from database.models import Transaction, Balance, Users
 from database.schema import CreateTransactionSchema, TransactionSchema
 from database.dependency import get_db
@@ -30,7 +30,7 @@ def create_transaction(transaction_data: CreateTransactionSchema, db: Session = 
             user_id=transaction_data.user_id,
             amount=transaction_data.amount,
             transaction_type=transaction_data.transaction_type,
-            transaction_status=TransactionStatus.PROCESSING
+            transaction_status=Status.PROCESSING
         )
 
         db.add(db_transaction)
@@ -63,7 +63,7 @@ def process_transaction(transaction_id: uuid.UUID, db: Session = Depends(get_db)
             logger.warning(f"Transaction {transaction_id} not found")
             raise HTTPException(status_code=404, detail="Transaction not found")
 
-        if db_transaction.transaction_status != TransactionStatus.PROCESSING:
+        if db_transaction.transaction_status != Status.PROCESSING:
             logger.warning(
                 f"Transaction {transaction_id} already processed with status: {db_transaction.transaction_status}")
             return TransactionSchema.model_validate(db_transaction)
@@ -71,7 +71,7 @@ def process_transaction(transaction_id: uuid.UUID, db: Session = Depends(get_db)
         user_balance = db.query(Balance).filter(Balance.user_id == db_transaction.user_id).first()
         if not user_balance:
             logger.error(f"Balance for user {db_transaction.user_id} not found")
-            db_transaction.transaction_status = TransactionStatus.FAILED
+            db_transaction.transaction_status = Status.FAILED
             db.commit()
             raise HTTPException(status_code=404, detail="User balance not found")
 
@@ -85,7 +85,7 @@ def process_transaction(transaction_id: uuid.UUID, db: Session = Depends(get_db)
             if user_balance.amount < db_transaction.amount:
                 logger.warning(
                     f"Insufficient balance for user {db_transaction.user_id}: {user_balance.amount} < {db_transaction.amount}")
-                db_transaction.transaction_status = TransactionStatus.FAILED
+                db_transaction.transaction_status = Status.FAILED
                 db.commit()
                 db.refresh(db_transaction)
                 return TransactionSchema.model_validate(db_transaction)
@@ -95,11 +95,11 @@ def process_transaction(transaction_id: uuid.UUID, db: Session = Depends(get_db)
 
         else:
             logger.error(f"Unknown transaction type: {db_transaction.transaction_type}")
-            db_transaction.transaction_status = TransactionStatus.FAILED
+            db_transaction.transaction_status = Status.FAILED
             db.commit()
             raise HTTPException(status_code=400, detail="Invalid transaction type")
 
-        db_transaction.transaction_status = TransactionStatus.DONE
+        db_transaction.transaction_status = Status.DONE
 
         db.commit()
         db.refresh(db_transaction)

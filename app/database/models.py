@@ -6,7 +6,7 @@ from sqlalchemy.dialects.postgresql import ENUM
 from sqlalchemy.orm import relationship
 
 from .database import Base
-from .enums import TransactionStatus, TransactionType
+from .enums import Status, TransactionType
 
 
 class Users(Base):
@@ -26,7 +26,7 @@ class Transaction(Base):
     timestamp = Column(DateTime, default=datetime.now(tz=timezone.utc), nullable=False)
     user_id = Column(UUID, ForeignKey('users.id'), nullable=False)
     amount = Column(Float, nullable=False)
-    transaction_status = Column(ENUM(TransactionStatus), nullable=False)
+    transaction_status = Column(ENUM(Status), nullable=False)
     transaction_type = Column(ENUM(TransactionType), nullable=False)
     user = relationship("Users", back_populates="transactions")  # было "User"
 
@@ -43,7 +43,8 @@ class GenerationHistory(Base):
     __tablename__ = 'generation_history'
     id = Column(UUID, primary_key=True, default=uuid.uuid4)
     user_id = Column(UUID, ForeignKey('users.id'), nullable=False)
-    s3_link = Column(String, nullable=False)
+    s3_link = Column(String, nullable=True)
+    status = Column(ENUM(Status), nullable=False, default=Status.PROCESSING)
     timestamp = Column(DateTime, default=datetime.now(tz=timezone.utc), nullable=False)
     tokens_spent = Column(Float, nullable=False)
     text = Column(String, nullable=False)

@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from logger_config import get_logger
 
-from database.enums import TransactionStatus, TransactionType
+from database.enums import Status, TransactionType
 from database.models import Users, Balance, Transaction
 from database.schema import CreateUserSchema, UserSchema, BalanceSchema, TransactionSchema
 
@@ -47,7 +47,7 @@ def create_user(user_data: CreateUserSchema, db: Session = Depends(get_db)) -> U
         initial_transaction = Transaction(
             user_id=db_user.id,
             amount=100.0,
-            transaction_status=TransactionStatus.DONE,
+            transaction_status=Status.DONE,
             transaction_type=TransactionType.CREDIT
         )
         db.add(initial_transaction)

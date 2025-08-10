@@ -11,3 +11,4 @@ torch
 soundfile
 parler_tts
 transformers
+pika

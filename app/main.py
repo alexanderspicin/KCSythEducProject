@@ -16,7 +16,6 @@ setup_logging(log_level="INFO", log_to_file=True)
 logger = get_logger(__name__)
 
 app = FastAPI()
-
 # Инициализируем базу данных и ExchangeService при запуске
 @app.on_event("startup")
 async def startup_event():

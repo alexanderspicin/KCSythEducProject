@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from database.schema import CreateUserSchema, UserSchema, Token, TransactionSchema, CreateTransactionSchema, \
     GenerationHistorySchema, CreateGenerationSchema
 from database.dependency import get_db
+
 from services.auth_service import verify_password, create_access_token, get_current_user
 from services.transaction_service import create_transaction, process_transaction
 from services.tts_service import count_tokens, create_prediction
@@ -80,23 +81,51 @@ def predictions_list(current_user: Users = Depends(get_current_user), db: Sessio
 
 @router.post('/predict', response_model=GenerationHistorySchema)
 def create_generation(text: str, current_user: Users = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Создание задачи на генерацию (асинхронно)"""
     tokens_spent = count_tokens(text)
     user_balance = db.query(Balance).filter(Balance.user_id == current_user.id).first()
+
     if user_balance.amount < tokens_spent:
         raise HTTPException(status_code=400, detail="Insufficient balance")
-    else:
-        try:
-            prediction = create_prediction(tokens_spent=tokens_spent, generation_data=CreateGenerationSchema(text=text),
-                                           db=db, user_id=current_user.id)
-            return prediction
-        except Exception as e:
-            logger.error(f"Prediction API request failed for {current_user.email}: {str(e)}")
-            raise HTTPException(status_code=500, detail=str(e))
+
+    try:
+        # Создаем и отправляем задачу в очередь (асинхронно)
+        prediction = create_prediction(
+            tokens_spent=tokens_spent,
+            generation_data=CreateGenerationSchema(text=text),
+            db=db,
+            user_id=current_user.id
+        )
+        return prediction
+
+    except Exception as e:
+        logger.error(f"Prediction API request failed for {current_user.email}: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get('/predictions/{generation_id}/status')
+def get_generation_status(
+        generation_id: str,
+        current_user: Users = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    """Проверка статуса генерации"""
+    from services.tts_service import check_generation_status
+
+    status = check_generation_status(generation_id, current_user.id, db)
+
+    if not status:
+        raise HTTPException(
+            status_code=404,
+            detail="Generation not found or access denied"
+        )
+
+    return status
 
 
 @router.get('/predictions/{generation_id}/audio')
 def get_audio_by_id(
-        generation_id: str,  # UUID as string
+        generation_id: str,
         current_user: Users = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -111,15 +140,20 @@ def get_audio_by_id(
             detail="Generation not found or access denied"
         )
 
-    # Check if file exists
+    from database.enums import Status
+    if generation.status != Status.DONE:
+        return {
+            "status": generation.status.value,
+            "message": "Audio is not ready yet. Please check status endpoint."
+        }
+
     file_path = generation.s3_link
-    if not os.path.exists(file_path):
+    if not file_path or not os.path.exists(file_path):
         raise HTTPException(
             status_code=404,
             detail="Audio file not found on server"
         )
 
-    # Return the audio file
     return FileResponse(
         path=file_path,
         media_type='audio/wav',
