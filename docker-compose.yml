@@ -61,36 +61,38 @@ services:
     networks:
       - kc-syth-network
   worker-1:
-      build: ./app/
-      container_name: ml-worker-1
-      command: python ml_worker/worker.py
-      restart: unless-stopped
-      env_file:
-        - .env
-      environment:
-        - WORKER_ID=worker-1
-      volumes:
-        - ./app:/app
-        - audio_files:/app/output
-      networks:
-        - kc-syth-network
-      depends_on:
-        rabbitmq:
-          condition: service_healthy
-        db:
-          condition: service_healthy
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: ml-worker-1
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - WORKER_ID=worker-1
+    volumes:
+      - ./app/database:/app/database
+      - audio_files:/app/output
+    networks:
+      - kc-syth-network
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      db:
+        condition: service_healthy
 
   worker-2:
-    build: ./app/
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
     container_name: ml-worker-2
-    command: python ml_worker/worker.py
     restart: unless-stopped
     env_file:
       - .env
     environment:
       - WORKER_ID=worker-2
     volumes:
-      - ./app:/app
+      - ./app/database:/app/database
       - audio_files:/app/output
     networks:
       - kc-syth-network

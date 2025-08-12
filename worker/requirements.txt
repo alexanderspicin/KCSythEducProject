@@ -1,0 +1,9 @@
+pika
+sqlalchemy~=2.0
+psycopg2-binary
+soundfile
+torch
+parler_tts
+transformers
+numpy
+
