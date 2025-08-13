@@ -1,4 +1,3 @@
-# ml_worker/worker.py
 import os
 import sys
 import time
