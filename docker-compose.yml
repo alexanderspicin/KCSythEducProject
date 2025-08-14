@@ -39,6 +39,24 @@ services:
     networks:
       - kc-syth-network
 
+  ui:
+    image: python:3.10-slim
+    container_name: kc-syth-ui
+    restart: unless-stopped
+    working_dir: /ui
+    volumes:
+      - ./streamlit_app:/ui
+    command: bash -c "pip install --no-cache-dir -r requirements.txt && streamlit run app.py --server.port=8501 --server.address=0.0.0.0"
+    environment:
+      - BACKEND_URL=http://app:8080
+    ports:
+      - "8501:8501"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - kc-syth-network
+
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq

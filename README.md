@@ -28,3 +28,31 @@ source .venv/bin/activate
 ```bash 
 python -c "from tests import test_user_creation_and_balance_operations; test_user_creation_and_balance_operations()"
 ```
+
+## Streamlit UI
+
+Простой веб-интерфейс на Streamlit добавлен в директорию `streamlit_app/`. Он поддерживает регистрацию, вход, пополнение баланса и генерацию аудио.
+
+### Запуск
+
+1. Убедитесь, что backend FastAPI запущен локально на `http://localhost:8080`.
+2. Установите зависимости UI (желательно в отдельной виртуальной среде):
+
+```bash
+pip install -r streamlit_app/requirements.txt
+```
+
+3. Запустите приложение Streamlit:
+
+```bash
+streamlit run streamlit_app/app.py
+```
+
+4. В интерфейсе можно изменить адрес backend в боковой панели (по умолчанию `http://localhost:8080`).
+
+### Возможности UI
+- Регистрация: POST `/register`
+- Вход: POST `/login` (OAuth2 form: `username`, `password`)
+- Профиль: GET `/me`
+- Пополнение: GET `/credit?amount=...`
+- Генерация: POST `/predict?text=...` + проверка статуса и скачивание `/predictions/{id}/audio`
