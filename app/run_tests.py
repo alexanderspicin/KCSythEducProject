@@ -36,8 +36,8 @@ def run_integration_test():
     """Run the integration test directly"""
     print("Running integration test...")
     try:
-        from tests import run_integration_test
-        success = run_integration_test()
+        from tests.test_integration import run_standalone_integration_test
+        success = run_standalone_integration_test()
         if success:
             print("✅ Integration test passed!")
             return True
@@ -47,6 +47,39 @@ def run_integration_test():
     except Exception as e:
         print(f"❌ Error running integration test: {e}")
         return False
+
+def run_specific_test(test_name):
+    """Run a specific test file or test class"""
+    # Add .py extension if not present
+    if not test_name.endswith('.py'):
+        test_name = f"{test_name}.py"
+    
+    cmd = ["python", "-m", "pytest", f"tests/{test_name}"]
+    print(f"Running specific test: {' '.join(cmd)}")
+    
+    try:
+        result = subprocess.run(cmd, cwd=Path(__file__).parent, check=True)
+        print("✅ Test passed!")
+        return True
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Test failed with exit code: {e.returncode}")
+        return False
+
+def list_available_tests():
+    """List all available test files"""
+    tests_dir = Path(__file__).parent / "tests"
+    test_files = list(tests_dir.glob("test_*.py"))
+    
+    print("Available test files:")
+    for test_file in test_files:
+        print(f"  - {test_file.stem}")
+    
+    print("\nTest categories:")
+    print("  - test_user_creation.py: User creation tests")
+    print("  - test_balance_operations.py: Balance operation tests")
+    print("  - test_transactions.py: Transaction processing tests")
+    print("  - test_api.py: API endpoint tests")
+    print("  - test_integration.py: Integration tests")
 
 def main():
     parser = argparse.ArgumentParser(description="Run tests for KCSythEducProject")
@@ -66,8 +99,25 @@ def main():
         action="store_true",
         help="Run only the integration test"
     )
+    parser.add_argument(
+        "--test", "-t",
+        help="Run a specific test file (e.g., test_user_creation)"
+    )
+    parser.add_argument(
+        "--list", "-l",
+        action="store_true",
+        help="List available test files"
+    )
     
     args = parser.parse_args()
+    
+    if args.list:
+        list_available_tests()
+        return
+    
+    if args.test:
+        success = run_specific_test(args.test)
+        sys.exit(0 if success else 1)
     
     if args.integration_only:
         success = run_integration_test()
