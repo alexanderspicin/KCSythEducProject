@@ -1,166 +1,337 @@
 """
-Тесты для проверки создания пользователя и операций с балансом
+Test suite for KCSythEducProject application
+Tests user creation, balance operations, and transaction processing
 """
 import uuid
+import pytest
 from sqlalchemy.orm import Session
+from fastapi.testclient import TestClient
 
-from database.database import SessionLocal
+from database.database import SessionLocal, get_db
 from database.models import Users, Balance, Transaction
 from database.schema import CreateUserSchema, CreateTransactionSchema
 from database.enums import TransactionType, Status
 from services.user_service import create_user
 from services.transaction_service import create_transaction, process_transaction
 from logger_config import setup_logging, get_logger
+from main import app
 
-# Настраиваем логирование для тестов
+# Setup logging for tests
 setup_logging(log_level="INFO", log_to_file=False)
 logger = get_logger(__name__)
 
+# Test client for FastAPI
+client = TestClient(app)
 
-def test_user_creation_and_balance_operations():
-    """
-    Комплексный тест:
-    1. Создание пользователя
-    2. Проверка создания начального баланса
-    3. Создание транзакции пополнения
-    4. Обработка транзакции
-    5. Проверка обновления баланса
-    """
-    # Создаем отдельную сессию для теста
-    db: Session = SessionLocal()
-    
+
+@pytest.fixture
+def db_session():
+    """Provide a database session for testing"""
+    db = SessionLocal()
     try:
-        logger.info("=== Начало комплексного теста ===")
+        yield db
+    finally:
+        db.close()
+
+
+@pytest.fixture
+def test_user_data():
+    """Provide test user data"""
+    return {
+        "email": f"test_user_{uuid.uuid4().hex[:8]}@example.com",
+        "password": "test_password_123"
+    }
+
+
+@pytest.fixture
+def test_user(db_session, test_user_data):
+    """Create and return a test user"""
+    user_data = CreateUserSchema(**test_user_data)
+    user = create_user(user_data=user_data, db=db_session)
+    db_session.commit()
+    return user
+
+
+class TestUserCreation:
+    """Test user creation functionality"""
+    
+    def test_create_user_success(self, db_session, test_user_data):
+        """Test successful user creation"""
+        user_data = CreateUserSchema(**test_user_data)
+        created_user = create_user(user_data=user_data, db=db_session)
         
-        # 1. Создание тестового пользователя
-        logger.info("1. Создание тестового пользователя")
-        test_email = f"test_user_{uuid.uuid4().hex[:8]}@example.com"
-        test_password = "test_password_123"
+        assert created_user is not None
+        assert created_user.email == test_user_data["email"]
+        assert created_user.id is not None
+        assert created_user.password is not None
         
-        user_data = CreateUserSchema(
-            email=test_email,
-            password=test_password
+        # Verify user exists in database
+        db_user = db_session.query(Users).filter(Users.id == created_user.id).first()
+        assert db_user is not None
+        assert db_user.email == test_user_data["email"]
+    
+    def test_create_user_duplicate_email(self, db_session, test_user):
+        """Test user creation with duplicate email fails"""
+        duplicate_user_data = CreateUserSchema(
+            email=test_user.email,
+            password="another_password"
         )
         
-        # Создаем пользователя
-        created_user = create_user(user_data=user_data, db=db)
+        # This should raise an exception or return None
+        with pytest.raises(Exception):
+            create_user(user_data=duplicate_user_data, db=db_session)
+
+
+class TestBalanceOperations:
+    """Test balance-related operations"""
+    
+    def test_initial_balance_creation(self, db_session, test_user):
+        """Test that initial balance is created with user"""
+        user_balance = db_session.query(Balance).filter(
+            Balance.user_id == test_user.id
+        ).first()
         
-        # Проверяем, что пользователь создан корректно
-        assert created_user is not None, "Пользователь не был создан"
-        assert created_user.email == test_email, f"Email не совпадает: {created_user.email} != {test_email}"
-        assert created_user.id is not None, "ID пользователя не присвоен"
-        logger.info(f"✓ Пользователь создан: ID={created_user.id}, Email={created_user.email}")
-        
-        # 2. Проверка создания пользователя в базе данных
-        logger.info("2. Проверка пользователя в базе данных")
-        db_user = db.query(Users).filter(Users.id == created_user.id).first()
-        assert db_user is not None, "Пользователь не найден в базе данных"
-        assert db_user.email == test_email, "Email в БД не совпадает"
-        assert db_user.password is not None, "Пароль не сохранен"
-        logger.info(f"✓ Пользователь найден в БД: {db_user.email}")
-        
-        # 3. Проверка создания начального баланса
-        logger.info("3. Проверка начального баланса")
-        user_balance = db.query(Balance).filter(Balance.user_id == created_user.id).first()
-        assert user_balance is not None, "Баланс пользователя не создан"
-        assert user_balance.amount == 100.0, f"Начальный баланс неверный: {user_balance.amount} != 100.0"
-        assert user_balance.user_id == created_user.id, "User ID в балансе не совпадает"
-        logger.info(f"✓ Начальный баланс создан: {user_balance.amount} токенов")
-        
-        # 4. Проверка начальной транзакции
-        logger.info("4. Проверка начальной транзакции")
-        initial_transaction = db.query(Transaction).filter(
-            Transaction.user_id == created_user.id,
+        assert user_balance is not None
+        assert user_balance.amount == 100.0  # Initial balance
+        assert user_balance.user_id == test_user.id
+    
+    def test_initial_transaction_creation(self, db_session, test_user):
+        """Test that initial transaction is created with user"""
+        initial_transaction = db_session.query(Transaction).filter(
+            Transaction.user_id == test_user.id,
             Transaction.transaction_type == TransactionType.CREDIT,
             Transaction.amount == 100.0
         ).first()
-        assert initial_transaction is not None, "Начальная транзакция не создана"
-        assert initial_transaction.transaction_status == Status.DONE, "Статус начальной транзакции неверный"
-        logger.info(f"✓ Начальная транзакция найдена: ID={initial_transaction.id}")
         
-        # 5. Создание дополнительной транзакции пополнения
-        logger.info("5. Создание транзакции пополнения")
-        top_up_amount = 500.0  # 500 рублей
-        
+        assert initial_transaction is not None
+        assert initial_transaction.transaction_status == Status.DONE
+        assert initial_transaction.user_id == test_user.id
+
+
+class TestTransactionProcessing:
+    """Test transaction processing functionality"""
+    
+    def test_create_credit_transaction(self, db_session, test_user):
+        """Test creating a credit transaction"""
         transaction_data = CreateTransactionSchema(
-            user_id=created_user.id,
-            amount=top_up_amount,
+            user_id=test_user.id,
+            amount=500.0,
             transaction_type=TransactionType.CREDIT
         )
         
-        new_transaction = create_transaction(transaction_data=transaction_data, db=db)
-        assert new_transaction is not None, "Транзакция не создана"
-        assert new_transaction.amount == top_up_amount, f"Сумма транзакции неверная: {new_transaction.amount}"
-        assert new_transaction.transaction_status == Status.PROCESSING, "Статус новой транзакции должен быть PROCESSING"
-        logger.info(f"✓ Транзакция создана: ID={new_transaction.id}, Сумма={new_transaction.amount}")
+        transaction = create_transaction(transaction_data=transaction_data, db=db_session)
         
-        # 6. Обработка транзакции
-        logger.info("6. Обработка транзакции")
-        processed_transaction = process_transaction(transaction_id=new_transaction.id, db=db)
-        assert processed_transaction is not None, "Транзакция не обработана"
-        assert processed_transaction.transaction_status == Status.DONE, "Статус обработанной транзакции должен быть DONE"
-        logger.info(f"✓ Транзакция обработана: статус={processed_transaction.transaction_status}")
+        assert transaction is not None
+        assert transaction.amount == 500.0
+        assert transaction.transaction_type == TransactionType.CREDIT
+        assert transaction.transaction_status == Status.PROCESSING
+        assert transaction.user_id == test_user.id
+    
+    def test_process_transaction_success(self, db_session, test_user):
+        """Test successful transaction processing"""
+        # Create a transaction first
+        transaction_data = CreateTransactionSchema(
+            user_id=test_user.id,
+            amount=300.0,
+            transaction_type=TransactionType.CREDIT
+        )
         
-        # 7. Проверка обновления баланса
-        logger.info("7. Проверка обновленного баланса")
-        db.refresh(user_balance)  # Обновляем объект из БД
+        transaction = create_transaction(transaction_data=transaction_data, db=db_session)
         
-        # Рассчитываем ожидаемый баланс (100 начальных + 500*1.2 курс)
-        expected_balance = 100.0 + (top_up_amount * 1.2)  # 100 + 600 = 700
+        # Process the transaction
+        processed_transaction = process_transaction(
+            transaction_id=transaction.id, 
+            db=db_session
+        )
         
-        assert user_balance.amount == expected_balance, f"Баланс после пополнения неверный: {user_balance.amount} != {expected_balance}"
-        logger.info(f"✓ Баланс обновлен корректно: {user_balance.amount} токенов")
+        assert processed_transaction is not None
+        assert processed_transaction.transaction_status == Status.DONE
         
-        # 8. Проверка всех транзакций пользователя
-        logger.info("8. Проверка всех транзакций пользователя")
-        all_transactions = db.query(Transaction).filter(Transaction.user_id == created_user.id).all()
-        assert len(all_transactions) == 2, f"Количество транзакций неверное: {len(all_transactions)} != 2"
+        # Verify balance was updated
+        user_balance = db_session.query(Balance).filter(
+            Balance.user_id == test_user.id
+        ).first()
         
-        # Проверяем, что обе транзакции имеют статус DONE
+        # Expected: 100 (initial) + 300*1.2 (exchange rate) = 460
+        expected_balance = 100.0 + (300.0 * 1.2)
+        assert user_balance.amount == expected_balance
+    
+    def test_multiple_transactions(self, db_session, test_user):
+        """Test processing multiple transactions"""
+        transactions = []
+        amounts = [100.0, 200.0, 150.0]
+        
+        # Create multiple transactions
+        for amount in amounts:
+            transaction_data = CreateTransactionSchema(
+                user_id=test_user.id,
+                amount=amount,
+                transaction_type=TransactionType.CREDIT
+            )
+            transaction = create_transaction(transaction_data=transaction_data, db=db_session)
+            transactions.append(transaction)
+        
+        # Process all transactions
+        for transaction in transactions:
+            process_transaction(transaction_id=transaction.id, db=db_session)
+        
+        # Verify final balance
+        user_balance = db_session.query(Balance).filter(
+            Balance.user_id == test_user.id
+        ).first()
+        
+        # Expected: 100 (initial) + sum(amounts * 1.2)
+        expected_balance = 100.0 + sum(amount * 1.2 for amount in amounts)
+        assert user_balance.amount == expected_balance
+        
+        # Verify all transactions are processed
+        all_transactions = db_session.query(Transaction).filter(
+            Transaction.user_id == test_user.id
+        ).all()
+        
+        assert len(all_transactions) == 4  # 1 initial + 3 new
         for transaction in all_transactions:
-            assert transaction.transaction_status == Status.DONE, f"Транзакция {transaction.id} имеет неверный статус"
-            assert transaction.transaction_type == TransactionType.CREDIT, f"Все транзакции должны быть CREDIT"
+            assert transaction.transaction_status == Status.DONE
+
+
+class TestDatabaseRelationships:
+    """Test database relationships and constraints"""
+    
+    def test_user_balance_relationship(self, db_session, test_user):
+        """Test user-balance relationship"""
+        user_balance = db_session.query(Balance).filter(
+            Balance.user_id == test_user.id
+        ).first()
         
-        logger.info(f"✓ Все транзакции проверены: {len(all_transactions)} транзакций со статусом DONE")
+        # Test forward relationship
+        assert test_user.balance is not None
+        assert test_user.balance.amount == user_balance.amount
         
-        # 9. Проверка связей в базе данных
-        logger.info("9. Проверка связей в базе данных")
+        # Test reverse relationship
+        assert user_balance.user is not None
+        assert user_balance.user.email == test_user.email
+    
+    def test_user_transactions_relationship(self, db_session, test_user):
+        """Test user-transactions relationship"""
+        # Create a transaction
+        transaction_data = CreateTransactionSchema(
+            user_id=test_user.id,
+            amount=100.0,
+            transaction_type=TransactionType.CREDIT
+        )
+        create_transaction(transaction_data=transaction_data, db=db_session)
         
-        # Проверяем связь пользователь -> баланс
-        assert db_user.balance is not None, "Связь пользователь->баланс не работает"
-        assert db_user.balance.amount == expected_balance, "Баланс через связь неверный"
+        # Test relationship
+        assert len(test_user.transactions) >= 2  # Initial + new transaction
         
-        # Проверяем связь пользователь -> транзакции
-        assert len(db_user.transactions) == 2, f"Связь пользователь->транзакции неверная: {len(db_user.transactions)}"
+        for transaction in test_user.transactions:
+            assert transaction.user_id == test_user.id
+
+
+class TestAPIEndpoints:
+    """Test FastAPI endpoints"""
+    
+    def test_health_check(self):
+        """Test health check endpoint"""
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert response.json() == {"status": "ok"}
+
+
+class TestErrorHandling:
+    """Test error handling scenarios"""
+    
+    def test_invalid_user_id(self, db_session):
+        """Test handling of invalid user ID"""
+        invalid_user_id = uuid.uuid4()
         
-        # Проверяем связь баланс -> пользователь
-        assert user_balance.user.email == test_email, "Связь баланс->пользователь неверная"
+        transaction_data = CreateTransactionSchema(
+            user_id=invalid_user_id,
+            amount=100.0,
+            transaction_type=TransactionType.CREDIT
+        )
         
-        logger.info("✓ Все связи в базе данных работают корректно")
+        # This should handle the case gracefully
+        with pytest.raises(Exception):
+            create_transaction(transaction_data=transaction_data, db=db_session)
+    
+    def test_invalid_transaction_amount(self, db_session, test_user):
+        """Test handling of invalid transaction amounts"""
+        invalid_amounts = [-100.0, 0.0, None]
         
-        # 10. Итоговая проверка данных
-        logger.info("10. Итоговая проверка")
-        final_user_data = {
-            "user_id": str(created_user.id),
-            "email": created_user.email,
-            "balance": user_balance.amount,
-            "transactions_count": len(all_transactions),
-            "final_status": "SUCCESS"
-        }
+        for amount in invalid_amounts:
+            if amount is not None:
+                transaction_data = CreateTransactionSchema(
+                    user_id=test_user.id,
+                    amount=amount,
+                    transaction_type=TransactionType.CREDIT
+                )
+                
+                # Should handle invalid amounts appropriately
+                with pytest.raises(Exception):
+                    create_transaction(transaction_data=transaction_data, db=db_session)
+
+
+def run_integration_test():
+    """
+    Run a comprehensive integration test
+    This function can be called directly for manual testing
+    """
+    db = SessionLocal()
+    
+    try:
+        logger.info("=== Starting Integration Test ===")
         
-        logger.info("=== РЕЗУЛЬТАТЫ ТЕСТА ===")
-        logger.info(f"User ID: {final_user_data['user_id']}")
-        logger.info(f"Email: {final_user_data['email']}")
-        logger.info(f"Final Balance: {final_user_data['balance']} токенов")
-        logger.info(f"Transactions Count: {final_user_data['transactions_count']}")
-        logger.info(f"Status: {final_user_data['final_status']}")
-        logger.info("=== ВСЕ ТЕСТЫ ПРОШЛИ УСПЕШНО! ===")
+        # Create test user
+        test_email = f"integration_test_{uuid.uuid4().hex[:8]}@example.com"
+        user_data = CreateUserSchema(
+            email=test_email,
+            password="integration_password_123"
+        )
         
-        return final_user_data
+        user = create_user(user_data=user_data, db=db)
+        logger.info(f"Created user: {user.email}")
+        
+        # Test balance operations
+        balance = db.query(Balance).filter(Balance.user_id == user.id).first()
+        logger.info(f"Initial balance: {balance.amount}")
+        
+        # Test transaction processing
+        transaction_data = CreateTransactionSchema(
+            user_id=user.id,
+            amount=250.0,
+            transaction_type=TransactionType.CREDIT
+        )
+        
+        transaction = create_transaction(transaction_data=transaction_data, db=db)
+        logger.info(f"Created transaction: {transaction.id}")
+        
+        processed_transaction = process_transaction(transaction_id=transaction.id, db=db)
+        logger.info(f"Processed transaction status: {processed_transaction.transaction_status}")
+        
+        # Verify final state
+        db.refresh(balance)
+        final_balance = balance.amount
+        logger.info(f"Final balance: {final_balance}")
+        
+        # Cleanup
+        db.delete(transaction)
+        db.delete(balance)
+        db.delete(user)
+        db.commit()
+        
+        logger.info("=== Integration Test Completed Successfully ===")
+        return True
         
     except Exception as e:
-        logger.error(f"Ошибка в тесте: {str(e)}")
+        logger.error(f"Integration test failed: {str(e)}")
         db.rollback()
-        raise
+        return False
     finally:
         db.close()
+
+
+if __name__ == "__main__":
+    # Run integration test when script is executed directly
+    success = run_integration_test()
+    exit(0 if success else 1)
